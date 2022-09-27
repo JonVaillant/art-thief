@@ -1,0 +1,5 @@
+.bin
+.DS_Store
+.esbuild
+dist
+node_modules

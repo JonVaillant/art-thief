@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+        "noImplicitAny": false,
+        "sourceMap": true,
+        "removeComments": true,
+        "preserveConstEnums": true,
+        "declaration": true,
+        "lib": ["es2021", "dom"],
+        "module": "commonjs",
+        "target": "es2021",
+        "outDir": "./dist",
+        "noUnusedLocals": true,
+        "noImplicitReturns": true,
+        "noImplicitThis": true,
+        "noUnusedParameters": false,
+        "pretty": true,
+        "noFallthroughCasesInSwitch": true,
+        "allowUnreachableCode": false
+    },
+    "include": ["src/*"],
+    "exclude": []
+}
