@@ -1,4 +1,5 @@
 import { Page } from "playwright-core"
+import { FoundArticle } from '../interfaces/found-article.interface'
 
 // @IMPORTANT: Due to the way playwright works you can't use document or window
 
@@ -7,7 +8,7 @@ export const getArticle = async (page: Page) => await page.evaluate(() => {
 
 /**
  * For an element find the element within that is the article container.
- * The paragraphs are not always <p> or all in same container (sections sometimes)
+ * The paragraphs are not always <p> or all in same container (section-containers sometimes)
  */
 const findArticleContainer = (topParent: HTMLElement = document.body): HTMLElement | null => {
     const textEls = allElsWithText(topParent)
@@ -22,8 +23,8 @@ const findArticleContainer = (topParent: HTMLElement = document.body): HTMLEleme
     const mostCommonDepth = findMostCommonDepth(textElsOfCommonWidth)
     // const greatestDepth = findGreatestDepth(textElsOfCommonWidth)
     const textElsOfCommonDepth = textElsOfCommonWidth.filter(te => getElDepth(te) === mostCommonDepth)
-    const shallowestParent = textElsOfCommonDepth[0]?.parentElement || textElsOfCommonWidth[0].parentElement
-    // const shallowestParent = getShallowestCommonParent(textElsOfCommonDepth)
+    // const shallowestParent = textElsOfCommonDepth[0]?.parentElement || textElsOfCommonWidth[0].parentElement // <-- this works really well often
+    const shallowestParent = getShallowestCommonParentAlt(textElsOfCommonDepth)
     // const shallowestParent = textElsOfCommonWidth[0].parentElement
 
     console.log('shallowest parent tag', shallowestParent?.tagName)
@@ -62,13 +63,30 @@ const findArticleContainer = (topParent: HTMLElement = document.body): HTMLEleme
     return shallowestParent || elMostText
 }
 
-const getShallowestCommonParent = (els: HTMLElement[]): HTMLElement | null => {
-    const parents: HTMLElement[] = [...new Set(els.map(el => el?.parentElement))].filter(p => p != null) as HTMLElement[]
+// const getShallowestCommonParent = (els: HTMLElement[]): HTMLElement | null => {
+//     const parents: HTMLElement[] = [...new Set(els.map(el => el?.parentElement))].filter(p => p != null) as HTMLElement[]
 
-    if (parents.length === 0) return null
-    if (parents.length === 1) return parents[0]
+//     if (parents.length === 0) return null
+//     if (parents.length === 1) return parents[0]
     
-    return getShallowestCommonParent(parents)
+//     return getShallowestCommonParent(parents)
+// }
+
+/**
+ * Takes some elements on same level and traverses up the tree until **most** of them are present.
+ * Remaining elements may be banners or related content around the actual content (unless mistake).
+ * @param bottomEls Elements on same level (often `<p>`). At or near greatest depth in content.
+ */
+const getShallowestCommonParentAlt = (bottomEls: HTMLElement[], attempt = 0) => {
+    if (attempt > 3) return bottomEls[Math.round(bottomEls.length / 2)]
+    const bottomElWithSuitableParent = bottomEls.find(el => parentContains(bottomEls, el?.parentElement))
+    return bottomElWithSuitableParent ? bottomElWithSuitableParent.parentElement : getShallowestCommonParentAlt(bottomEls.map(el => el?.parentElement), attempt + 1)
+}
+
+const parentContains = (children: HTMLElement[], parent: HTMLElement): boolean => {
+    const sameParent: number = children.reduce((acc, chi) => acc += parent.contains(chi) ? 1 : 0, 0)
+    const result: boolean = (sameParent / children.length) >= 0.7
+    return result
 }
 
 const notInHidden = (el: HTMLElement): boolean => (el.hidden || el.style.opacity === '0' || el.style.display === 'none') ? false : (el?.parentElement ? notInHidden(el?.parentElement) : true)
@@ -77,17 +95,17 @@ const notInHidden = (el: HTMLElement): boolean => (el.hidden || el.style.opacity
 const getElDepth = (el: HTMLElement): number => el?.parentElement ? (1 + getElDepth(el?.parentElement)) : 0
 
 /** Get an object mapping depths to their depth occurrences */
-// const findMostCommonDepths = (els: HTMLElement[]): { [key: number]: number } => els.map(el => getElDepth(el)).reduce((a, d) => ({...a, [d]: (a[d] || 0) + 1}), {})
+const findMostCommonDepths = (els: HTMLElement[]): { [key: number]: number } => els.map(el => getElDepth(el)).reduce((a, d) => ({...a, [d]: (a[d] || 0) + 1}), {})
 
 /** Find depth which is most common (highest occurrence) */
 const findMostCommonDepth = (els: HTMLElement[]): number => {
-    const depthCounts = findMostCommonDepth
+    const depthCounts: { [key: number]: number } = findMostCommonDepths(els)
     let highestCount: number = 0
     let mostCommonDepth: number = 0
 
     Object.keys(depthCounts).map(depth => Number(depth)).filter(w => !!w).forEach(depth => {
         const count = depthCounts[depth]
-        if (count <= highestCount || depth > mostCommonDepth) return
+        if (count <= highestCount || depth < mostCommonDepth) return
         highestCount = count
         mostCommonDepth = depth
     });
@@ -102,7 +120,7 @@ const findMostCommonWidths = (els: HTMLElement[]): { [key: number]: number } => 
 
 /** Find width which is most common (highest occurrence) */
 const findMostCommonWidth = (els: HTMLElement[]): number => {
-    const widthCounts = findMostCommonWidths(els)
+    const widthCounts: { [key: number]: number } = findMostCommonWidths(els)
     let highestCount: number = 0
     let mostCommonWidth: number = 0
 
@@ -123,19 +141,34 @@ const elWithMostText = (textEls: HTMLElement[]): HTMLElement | null => {
     return byTextLength.length ? byTextLength[0] : null
 }
 
-// const nodeIndex = (els: HTMLElement[],e el: HTMLElement): number => els.indexOf(el)
+const paragraphLikeExp = new RegExp(/[\w| |.|,|&]{30,}\W/g)
+const hasMeatyParagraphs = (textContent: string): boolean => (textContent.match(paragraphLikeExp)?.length || 0) > 3
 
-// const articleText = (articleEl: HTMLElement): string | null => articleEl.textContent
+/** Clean el and return innerHTML string. Modifies el passed in. */
+const getPureHtml = (el: HTMLElement): string => {
+    el.querySelectorAll('script').forEach(s => s.remove())
+    el.querySelectorAll('*').forEach(c => {
+        c.removeAttribute('class')
+        c.removeAttribute('style')
+        c.removeAttribute('id')
+    })
+
+    return el.innerHTML
+}
 
 const articleEl = findArticleContainer()
 
-const result = {
+const htmlText = getPureHtml(articleEl)
+
+const result: FoundArticle = {
     tag: articleEl.tagName,
     cssClass: articleEl.className,
-    content: articleEl.textContent
+    content: articleEl.textContent,
+    html: htmlText,
+    confidenceArticle: articleEl.textContent.length > 300 && hasMeatyParagraphs(articleEl.textContent)
 }
 
-return window['outResult'] = result
+return window['foundArticle'] = result
 
 // ## Out Close Tag
 })

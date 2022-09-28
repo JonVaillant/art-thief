@@ -1,6 +1,7 @@
 import { Context, APIGatewayProxyResult, APIGatewayEvent } from 'aws-lambda';
 import { capture } from './capture';
 import { ReqBody } from './interfaces/req-body.interface'
+import { ResBody } from './interfaces/res-body.interface'
 
 export const handler = async (event: APIGatewayEvent, context: Context): Promise<APIGatewayProxyResult> => {
     console.log(`Event: ${JSON.stringify(event, null, 2)}`);
@@ -31,20 +32,18 @@ export const handler = async (event: APIGatewayEvent, context: Context): Promise
     }
 
     try {
-        const screenshot = await capture(body.url, true);
+        const resBody: ResBody = await capture(body.url, true);
 
         return {
             statusCode: 200,
-            body: JSON.stringify({
-                screenshot
-            }),
+            body: JSON.stringify(resBody),
         };
     } catch (e) {
-        console.error('Screenshot capture failed', e)
+        console.error('Capture failed', e)
 
         return {
             statusCode: 500,
-            body: 'Screenshot capture failed.'
+            body: 'Capture failed.'
         }
     }
 };
