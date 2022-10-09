@@ -19,8 +19,8 @@ Useful for:
 
 ## Features
 - [x] Extract information about articles
-- [] Extract primary cover or media from page
-- [] Extract product information
+- [ ] Extract primary cover or media from page
+- [ ] Extract product information
 
 
 ## Example
