@@ -44,7 +44,7 @@ Yes it is. The other scrapers/readability tools don't get the whole article when
 
 ## Limitations
 
-The tool cannot extract the body of "premium" articles as you would find on many websites that require sign in and payment. You could fork it for private use theoretically and make it sign in with your own credentials.
+The tool cannot extract the body of "premium" articles as you would find on many websites that require sign in and payment. You could fork it for private use theoretically and make it sign in to those sites with your own paid membership's credentials.
 
 
 ## When Building
@@ -66,27 +66,38 @@ docker build --platform linux/amd64 -t art-thief .
 
 Just pass in the URL of the site. The URL must include the protocol and match an existing page, as in `"https://www.wikipedia.org"` VS `"wikipedia.org"`.
 
-In an API request body
+### Usage with Live API
+In an AWS API or Function URL request body:
 ```json
 { "url": "url-of-page-to-crawl" }
 ```
 
-In another event
+### Usage with function console or Docker port
+On the AWS function console's test panel and when hitting the docker endpoint locally you must wrap your request body with "body".
 ```json
 { "body": {"url": "url-of-page-to-crawl" } }
 ```
 
 
-## Low-fidelity Local Testing
+## Locally verify crawl results
 
-Outside the container.
-
-```cli
-yarn build && node ./dist/test.js
-```
+- A) Run the test script outside the container to test just the code
+    - `yarn build && node ./dist/test.js`
+    - This test script doesn't log the results properly at present so it's better just to hit the docker image endpoint (see B)
+- B) Run and test the image using the endpoint ([see usage](https://gallery.ecr.aws/lambda/nodejs))
+    - `docker build -t art-thief .`
+        - This container must be AMD not ARM, so build as AMD: `docker build --platform linux/amd64 -t art-thief .` 
+    - `docker run -p 9000:8080 art-thief`
+    - `curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{"body": "{\"url\": \"https://www.nytimes.com/2022/09/27/well/eat/matcha-health-benefits.html\"}"}'`
+        - You can change the URL to the page you wish to check
+        - Note that this endpoint is not properly formatted JSON, so in Postman it won't look nice (fortunately on AWS the API endpoints are JSON)
 
 
 ## What are the key details returned?
 
 Look at the code within `./src/interfaces`.
 
+
+## Resources
+
+- [Amazon NodeJS Lambda Images](https://gallery.ecr.aws/lambda/nodejs)
